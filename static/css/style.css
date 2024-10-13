@@ -1,0 +1,80 @@
+/* Define color variables for easy customization */
+:root {
+    --primary-color: #ffffff; /* White or light grey for backgrounds */
+    --secondary-color: #333333; /* Dark grey for text */
+    --accent-color: #FF5733; /* Orange accent color */
+    --font-family: 'Roboto', sans-serif; /* Modern font */
+}
+
+/* General body styling */
+body {
+    font-family: var(--font-family);
+    color: var(--secondary-color);
+    background-color: var(--primary-color);
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+/* Headers */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--secondary-color);
+    margin-bottom: 1rem;
+}
+
+/* Links */
+a {
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: darkorange;
+}
+
+/* Buttons */
+button {
+    background-color: var(--accent-color);
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    border-radius: 5px;
+}
+
+button:hover {
+    background-color: darkorange;
+}
+
+/* Containers */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+/* Flexbox for responsive layout */
+.flex-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.flex-item {
+    flex: 1 1 calc(33.333% - 1rem);
+    box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+    .flex-item {
+        flex: 1 1 calc(50% - 1rem);
+    }
+}
+
+@media (max-width: 480px) {
+    .flex-item {
+        flex: 1 1 100%;
+    }
+}
