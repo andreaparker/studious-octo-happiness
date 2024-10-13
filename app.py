@@ -1,23 +1,33 @@
 import os
 import uuid
 import json
-import time  # Add this import at the top of the file
+import time
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from markupsafe import Markup
 from models.indexer import index_documents
 from models.retriever import retrieve_documents
 from models.responder import generate_response
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from logger import get_logger
 from byaldi import RAGMultiModalModel
 import markdown
+from flask_login import LoginManager, UserMixin, UserMixin, login_user, login_required, logout_user, current_user
 
 # Set the TOKENIZERS_PARALLELISM environment variable to suppress warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Initialize the Flask application
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Replace with a secure secret key
+
+# **Initialize the LoginManager**
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'  # Specify the login route
+
+# Use the secret key from the environment
+app.secret_key = os.environ.get('SECRET_KEY', 'fallback_secret_key')  # Replace with a secure secret key
 
 logger = get_logger(__name__)
 
@@ -32,6 +42,28 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['STATIC_FOLDER'], exist_ok=True)
 os.makedirs(app.config['SESSION_FOLDER'], exist_ok=True)
 
+# **User Authentication Setup**
+
+# User model
+class User(UserMixin):
+    def __init__(self, id):
+        self.id = id
+        # You can add more attributes if needed
+
+# In-memory user store (for demonstration purposes)
+users = {
+    'admin': {
+        'password': generate_password_hash('ch4ng3m3!')  # Replace with your desired password
+    }
+}
+
+@login_manager.user_loader
+def load_user(user_id):
+    if user_id in users:
+        return User(user_id)
+    return None
+
+# **Application Initialization**
 # Initialize global variables
 RAG_models = {}  # Dictionary to store RAG models per session
 app.config['INITIALIZATION_DONE'] = False  # Flag to track initialization
@@ -82,12 +114,41 @@ def make_session_permanent():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
 
+# **Login and Logout Routes**
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        user_record = users.get(username)
+        if user_record and check_password_hash(user_record['password'], password):
+            user = User(username)
+            login_user(user)
+            flash('Logged in successfully.', 'success')
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('chat'))
+        else:
+            flash('Invalid username or password.', 'danger')
+            return render_template('login.html')
+    else:
+        return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('login'))
 
 @app.route('/', methods=['GET'])
+@login_required
 def home():
     return redirect(url_for('chat'))
 
 @app.route('/chat', methods=['GET', 'POST'])
+@login_required
 def chat():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
@@ -155,7 +216,7 @@ def chat():
 
         elif 'send_query' in request.form:
             query = request.form['query']
-            
+            response_length = 'long' if 'long_response' in request.form else 'short'
             try:
                 generation_model = session.get('generation_model', 'qwen')
                 resized_height = session.get('resized_height', 280)
@@ -245,13 +306,6 @@ def rename_session():
     new_session_name = request.form.get('new_session_name', 'Untitled Session')
     session_file = os.path.join(app.config['SESSION_FOLDER'], f"{session_id}.json")
 
-    # Log the session_id and session_file path for debugging
-    logger.debug(f"Attempting to rename session: {session_id}")
-    logger.debug(f"Session file path: {session_file}")
-
-    # Log the contents of the SESSION_FOLDER
-    logger.debug(f"Contents of SESSION_FOLDER: {os.listdir(app.config['SESSION_FOLDER'])}")
-
     if os.path.exists(session_file):
         with open(session_file, 'r') as f:
             session_data = json.load(f)
@@ -267,10 +321,8 @@ def rename_session():
         if session.get('session_id') == session_id:
             session['session_name'] = new_session_name
 
-        logger.info(f"Session {session_id} renamed to {new_session_name}.")
         return jsonify({"success": True, "message": "Session name updated."})
     else:
-        logger.error(f"Session file not found for session_id: {session_id}")
         return jsonify({"success": False, "message": "Session not found."})
 
 @app.route('/delete_session/<session_id>', methods=['POST'])

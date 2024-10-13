@@ -20,12 +20,12 @@ def encode_image(image_path):
   with open(image_path, "rb") as image_file:
     return base64.b64encode(image_file.read()).decode('utf-8')
 
-def generate_response(images, query, session_id, resized_height=280, resized_width=280, model_choice='qwen'):
+def generate_response(images, query, session_id, resized_height=280, resized_width=280, model_choice='qwen', response_length='short'):
     """
     Generates a response using the selected model based on the query and images.
     """
     try:
-        logger.info(f"Generating response using model '{model_choice}'.")
+        logger.info(f"Generating response using model '{model_choice}' with response length '{response_length}'.")
         
         # Convert resized_height and resized_width to integers
         resized_height = int(resized_height)
@@ -36,10 +36,13 @@ def generate_response(images, query, session_id, resized_height=280, resized_wid
         
         # Check if any valid images exist
         valid_images = [img for img in full_image_paths if os.path.exists(img)]
-        
+        query_with_instructions = query + " You must include the relevant section names and any parenthetical references found in the text that you cite from the document."
+
         if not valid_images:
             logger.warning("No valid images found for analysis.")
             return "No images could be loaded for analysis."
+        
+        #max_tokens = 200 if response_length == 'short' else 500 # Adjust token count based on response length
         
         if model_choice == 'qwen':
             from qwen_vl_utils import process_vision_info
@@ -60,7 +63,7 @@ def generate_response(images, query, session_id, resized_height=280, resized_wid
             messages = [
                 {
                     "role": "user",
-                    "content": image_contents + [{"type": "text", "text": query}],
+                    "content": image_contents + [{"type": "text", "text": query_with_instructions}],
                 }
             ]
             text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -73,7 +76,7 @@ def generate_response(images, query, session_id, resized_height=280, resized_wid
                 return_tensors="pt",
             )
             inputs = inputs.to(device)
-            generated_ids = model.generate(**inputs, max_new_tokens=128)
+            generated_ids = model.generate(**inputs, max_new_tokens=max_tokens)
             generated_ids_trimmed = [
                 out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
             ]
@@ -88,7 +91,12 @@ def generate_response(images, query, session_id, resized_height=280, resized_wid
             client = OpenAI(api_key=api_key)
             
             try:
-                content = [{"type": "text", "text": query}]
+                content = [{"type": "text", "text": query_with_instructions}] #used to be query
+                
+                # Log the query being passed to GPT-4o
+                logger.info(f"Query for GPT-4o: {query_with_instructions}")
+                # Alternatively, use print if you prefer
+                # print(f"Query for GPT-4o: {query_with_instructions}")
                 
                 for img_path in valid_images:
                     logger.info(f"Processing image: {img_path}")
@@ -114,7 +122,7 @@ def generate_response(images, query, session_id, resized_height=280, resized_wid
                             "content": content
                         }
                     ],
-                    max_tokens=2048
+    
                 )
                 
                 generated_text = response.choices[0].message.content

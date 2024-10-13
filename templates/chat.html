@@ -1,5 +1,3 @@
-<!-- templates/chat.html -->
-
 {% extends 'base.html' %}
 
 {% block content %}
@@ -22,10 +20,11 @@
             </div>
         {% endfor %}
     </div>
-    <div class="chat-input-container">
-        <form id="chat-form" enctype="multipart/form-data">
+    <div class="chat-input-container" style="position: relative;">
+        <form id="chat-form" method="POST" action="/chat">
+            <!-- Existing form inputs -->
             <div class="input-group">
-                <input type="text" id="query" name="query" class="form-control" placeholder="Type your message...">
+                <input type="text" class="form-control" id="query" name="query" placeholder="Type your message">
                 <label class="input-group-text" for="file-upload">
                     <i class="fas fa-paperclip"></i>
                 </label>
